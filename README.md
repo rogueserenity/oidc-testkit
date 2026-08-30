@@ -216,12 +216,31 @@ that valid tokens verify while expired / foreign-key / wrong-iss / wrong-aud /
 `alg:none` tokens are all rejected. go-oidc and API Gateway's native authorizer
 implement the same RFCs — if go-oidc round-trips, the authorizer will too.
 
+### CI
+
+`.github/workflows/ci.yml` runs on every PR and every push to `main`: lint
+(`golangci-lint` + `actionlint`), `go test -race`, and `go build` + `go vet`.
+PR titles are checked as [Conventional Commits](https://www.conventionalcommits.org/)
+because release-please derives the version from them — **merge PRs with
+squash** so the PR title becomes the commit message on `main`.
+
+Renovate keeps Go module deps and pinned GitHub Action digests current
+(`renovate.json`), auto-merging non-major bumps.
+
 ## Releases
 
-Tag `vX.Y.Z` on `main`. Semver, starting at `v0.1.0`. Consumers use it as a
-normal module dependency plus `go run .../cmd/oidc-testkit-gen@vX.Y.Z` in a
-build step; a binary-release workflow is deferred until a binary install path is
-actually chosen.
+Versioning is [release-please](https://github.com/googleapis/release-please).
+It watches conventional-commit messages on `main` and maintains a
+`chore(main): release X.Y.Z` PR that updates `CHANGELOG.md` and the version
+manifest. **Merging that PR** tags `vX.Y.Z` and publishes the GitHub Release —
+no manual tagging. Pre-1.0, `feat:` bumps the minor and `fix:` the patch, so
+the first release lands `v0.1.0`.
+
+Consumers use a tagged version as a normal module dependency
+(`require github.com/rogueserenity/oidc-testkit vX.Y.Z`) and run the CLI with
+`go run github.com/rogueserenity/oidc-testkit/cmd/oidc-testkit-gen@vX.Y.Z` or a
+`go.mod` `tool` directive. No prebuilt binaries are published; add a binary
+workflow only if a `ubi:`-style install path is later chosen.
 
 ## License
 

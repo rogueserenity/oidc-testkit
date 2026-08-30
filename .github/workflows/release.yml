@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # An App token, not the default GITHUB_TOKEN: a release/tag created by
+      # the Actions bot does not trigger other workflows (GitHub's anti-loop
+      # rule), and consumers pinning `@vX.Y.Z` need the tag to exist the
+      # moment the release PR merges. The App token also lets release-please
+      # push its release branch and open the PR as the app identity.
+      - name: Generate App Token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.RS_TOKEN_APP_ID }}
+          private-key: ${{ secrets.RS_TOKEN_APP_PK }}
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
