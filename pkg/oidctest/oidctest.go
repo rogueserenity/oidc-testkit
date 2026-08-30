@@ -1,17 +1,20 @@
-// Package oidctest mints locally-signed OIDC ID tokens for functional tests,
-// plus the discovery document and JWKS that let a real verifier accept them.
+// Package oidctest mints locally-signed OIDC ID tokens for functional tests.
 //
 // The model: one signing keypair, one issuer URL and one audience are fixed for
 // a whole test-suite run. A pre-deploy step (the oidc-testkit-gen CLI) writes
 // signing-key.pem, jwks.json and openid-configuration; the JSON files are
 // published somewhere the verifier can fetch them, and the issuer is baked into
-// the deployed authorizer. During the run, each test loads that same PEM and
-// calls Signer.Sign to mint a fresh token — typically for a fresh random
-// subject — with zero I/O and no shared server, so tests parallelize freely.
+// the deployed authorizer. During the run, each test calls LoadKey on that same
+// PEM once, then Signer.Sign per spec to mint a fresh token — typically for a
+// fresh random subject — with zero I/O and no shared server, so tests
+// parallelize freely.
 //
-// The one hard coupling between the two halves is the kid: KeyID is the single
-// function that derives it, the CLI stamps it into jwks.json, and Signer stamps
-// the identical value into every JWT header.
+// This package holds only what a test binary needs: LoadKey, KeyID, and the
+// Signer. Generating the keypair and building the jwks.json / discovery-document
+// files is the CLI's job and lives in internal/gen. The one hard coupling
+// between the two is the kid: KeyID is the single function that derives it,
+// internal/gen stamps it into jwks.json, and Signer stamps the identical value
+// into every JWT header.
 package oidctest
 
 import (
@@ -25,6 +28,11 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 )
+
+// foreignKeyBits is the modulus size for the throwaway key SignWithForeignKey
+// mints. Kept small — the key is discarded immediately and only has to produce
+// a syntactically valid signature that then fails verification.
+const foreignKeyBits = 2048
 
 // defaultTTL is how far in the future exp sits when no expiry option is given.
 const defaultTTL = time.Hour
@@ -243,9 +251,9 @@ func (s *Signer) SignWrongIssuer(opts ...SignOption) (token, subject string, err
 // the Signer's advertised kid, so a verifier fetches the real (wrong) key and
 // the signature check is what rejects the token.
 func (s *Signer) SignWithForeignKey(opts ...SignOption) (token, subject string, err error) {
-	foreign, err := GenerateKey()
+	foreign, err := rsa.GenerateKey(rand.Reader, foreignKeyBits)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("oidctest: generate foreign key: %w", err)
 	}
 	c, err := s.resolve(opts)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/rogueserenity/oidc-testkit/internal/gen"
 	"github.com/rogueserenity/oidc-testkit/pkg/oidctest"
 )
 
@@ -31,7 +32,7 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 
-	key, err := oidctest.GenerateKey()
+	key, err := gen.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
 	}
@@ -40,11 +41,11 @@ func newHarness(t *testing.T) *harness {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	jwks, err := oidctest.JWKS(key)
+	jwks, err := gen.JWKS(key)
 	if err != nil {
 		t.Fatalf("JWKS: %v", err)
 	}
-	discovery, err := oidctest.DiscoveryDoc(srv.URL, srv.URL+"/jwks.json")
+	discovery, err := gen.DiscoveryDoc(srv.URL, srv.URL+"/jwks.json")
 	if err != nil {
 		t.Fatalf("DiscoveryDoc: %v", err)
 	}
@@ -242,13 +243,13 @@ func TestSignExpiredIsSpecificError(t *testing.T) {
 func TestKidCoupling(t *testing.T) {
 	t.Parallel()
 
-	key, err := oidctest.GenerateKey()
+	key, err := gen.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
 	}
 	fromKeyID := oidctest.KeyID(&key.PublicKey)
 
-	jwks, err := oidctest.JWKS(key)
+	jwks, err := gen.JWKS(key)
 	if err != nil {
 		t.Fatalf("JWKS: %v", err)
 	}

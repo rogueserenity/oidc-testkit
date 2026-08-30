@@ -18,9 +18,19 @@ Module `github.com/rogueserenity/oidc-testkit`, Go 1.26+. Layout follows
 [golang-standards/project-layout](https://github.com/golang-standards/project-layout):
 
 ```
-cmd/oidc-testkit-gen/   the CLI (binary: oidc-testkit-gen)
-pkg/oidctest/           the importable library (package oidctest)
+pkg/oidctest/          the importable library — LoadKey, KeyID, Signer.
+                       All a test binary needs.
+internal/gen/          file generation — GenerateKey, MarshalKeyPEM, JWKS,
+                       DiscoveryDoc. Used only by the CLI; not importable
+                       from outside this module.
+cmd/oidc-testkit-gen/  the CLI (binary: oidc-testkit-gen), a shell over
+                       internal/gen.
 ```
+
+The split is deliberate: signing tokens and generating the JWKS/discovery
+files happen at different times, in different processes, and only the `kid`
+crosses between them — so only `KeyID` is shared (it lives in `pkg/oidctest`
+and `internal/gen` calls it).
 
 ---
 
@@ -32,8 +42,8 @@ the test binary, once per spec. So the toolkit has two halves:
 
 | | When | What |
 |---|---|---|
-| **CLI** (`oidc-testkit-gen`) | pre-deploy | generates the keypair, writes `signing-key.pem` + `jwks.json` + `openid-configuration`, prints the issuer URL |
-| **Library** (`oidctest`) | in-process, during tests | loads that same PEM, then `Sign(...)` per spec |
+| **CLI** (`oidc-testkit-gen`, over `internal/gen`) | pre-deploy | generates the keypair, writes `signing-key.pem` + `jwks.json` + `openid-configuration`, prints the issuer URL |
+| **Library** (`pkg/oidctest`) | in-process, during tests | `LoadKey` that same PEM, then `Sign(...)` per spec |
 
 A CI step publishes the two JSON files somewhere the verifier can reach
 (historically a public S3 bucket) and feeds the printed issuer URL into the
@@ -44,36 +54,24 @@ coordination, no race.
 
 The `kid` in `jwks.json` **must** equal the `kid` in every JWT header, or
 signature verification fails. Both derive from the key via one exported
-function, [`KeyID`](#keys) — an RFC 7638 JWK thumbprint. The CLI stamps
-`KeyID` into the JWKS; `Signer` stamps the identical value into each token
-header. `kid` is never passed around and never computed twice.
+function, `oidctest.KeyID` — an RFC 7638 JWK thumbprint. `internal/gen` stamps
+it into the JWKS; `Signer` stamps the identical value into each token header.
+`kid` is never passed around and never computed twice.
 
 ---
 
-## Library
+## Library — `pkg/oidctest`
 
 ### Keys
 
 ```go
-func GenerateKey() (*rsa.PrivateKey, error)          // fresh RSA-2048
 func LoadKey(pemBytes []byte) (*rsa.PrivateKey, error) // PKCS#8 or PKCS#1
-func MarshalKeyPEM(key *rsa.PrivateKey) ([]byte, error) // PKCS#8 PEM
-func KeyID(pub *rsa.PublicKey) string                // RFC 7638 thumbprint
+func KeyID(pub *rsa.PublicKey) string                  // RFC 7638 thumbprint
 ```
 
-### Discovery + JWKS
-
-```go
-func JWKS(key *rsa.PrivateKey) ([]byte, error)
-func DiscoveryDoc(issuer, jwksURI string, opts ...DiscoveryOption) ([]byte, error)
-func WithEndpoints(authorizationEndpoint, tokenEndpoint string) DiscoveryOption
-```
-
-`issuer` is written verbatim as the `issuer` field. go-oidc exact-matches it
-against the URL passed to `oidc.NewProvider`, and API Gateway does the same
-against its configured issuer — pass the same string everywhere. Output is
-byte-stable for fixed inputs (sorted keys, no timestamps), so CI can diff or
-cache it.
+A test suite reads the PEM the CLI wrote and calls `LoadKey` once.
+`KeyID` is the shared `kid` function — `internal/gen` calls it to build the
+JWKS, `Signer` calls it for the JWT header.
 
 ### Signing tokens
 
@@ -183,8 +181,8 @@ Writes exactly three files:
 | File | Content |
 |---|---|
 | `<key-out>` | PKCS#8 PEM, RSA-2048 private key, mode `0600` |
-| `<out-dir>/jwks.json` | `oidctest.JWKS(key)` |
-| `<out-dir>/openid-configuration` | `oidctest.DiscoveryDoc(issuer, jwksURI)` |
+| `<out-dir>/jwks.json` | `gen.JWKS(key)` |
+| `<out-dir>/openid-configuration` | `gen.DiscoveryDoc(issuer, jwksURI)` |
 
 **Stdout is exactly one line: the issuer URL.** Everything else — usage, progress,
 errors — goes to stderr. Non-zero exit on any failure.
@@ -198,8 +196,9 @@ aws s3 cp ./oidc/openid-configuration "s3://my-bucket/jwks/pr-123/.well-known/op
 # then: sam deploy --parameter-overrides OidcIssuerBaseUrl=$ISSUER ...
 ```
 
-The CLI does no crypto of its own — it calls `GenerateKey`, `MarshalKeyPEM`,
-`JWKS`, `DiscoveryDoc` — which is what guarantees the `kid` match.
+The CLI does no crypto of its own — it calls `internal/gen`'s `GenerateKey`,
+`MarshalKeyPEM`, `JWKS`, `DiscoveryDoc`, and those derive the `kid` from
+`oidctest.KeyID` — which is what guarantees the match with `Signer`.
 
 ---
 

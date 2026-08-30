@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rogueserenity/oidc-testkit/internal/gen"
 	"github.com/rogueserenity/oidc-testkit/pkg/oidctest"
 )
 
@@ -133,7 +134,7 @@ func TestRunByteStableAcrossRunsForSameKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	want, err := oidctest.DiscoveryDoc("https://iss.example", "https://iss.example/jwks.json")
+	want, err := gen.DiscoveryDoc("https://iss.example", "https://iss.example/jwks.json")
 	if err != nil {
 		t.Fatalf("DiscoveryDoc: %v", err)
 	}

@@ -1,8 +1,10 @@
 package oidctest
 
 import (
+	"crypto/rand"
 	"crypto/rsa"
-	"encoding/json"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
 )
 
@@ -48,23 +50,32 @@ func TestKeyIDIsRFC7638Thumbprint(t *testing.T) {
 	}
 }
 
-func TestMarshalKeyPEMRoundTrip(t *testing.T) {
+func TestLoadKeyRoundTripsPKCS8AndPKCS1(t *testing.T) {
 	t.Parallel()
 
 	key := testKey(t)
-	pemBytes, err := MarshalKeyPEM(key)
+
+	der8, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
-		t.Fatalf("MarshalKeyPEM: %v", err)
+		t.Fatalf("marshal PKCS#8: %v", err)
 	}
-	loaded, err := LoadKey(pemBytes)
-	if err != nil {
-		t.Fatalf("LoadKey: %v", err)
-	}
-	if !key.Equal(loaded) {
-		t.Fatal("round-tripped key does not equal the original")
-	}
-	if KeyID(&key.PublicKey) != KeyID(&loaded.PublicKey) {
-		t.Fatal("round-tripped key has a different kid")
+	pkcs8 := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der8})
+	pkcs1 := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+
+	for name, in := range map[string][]byte{"pkcs8": pkcs8, "pkcs1": pkcs1} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			loaded, err := LoadKey(in)
+			if err != nil {
+				t.Fatalf("LoadKey: %v", err)
+			}
+			if !key.Equal(loaded) {
+				t.Fatal("round-tripped key does not equal the original")
+			}
+			if KeyID(&key.PublicKey) != KeyID(&loaded.PublicKey) {
+				t.Fatal("round-tripped key has a different kid")
+			}
+		})
 	}
 }
 
@@ -72,9 +83,9 @@ func TestLoadKeyRejectsGarbage(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string][]byte{
-		"empty":        nil,
-		"not pem":      []byte("definitely not a pem file"),
-		"wrong block":  []byte("-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"),
+		"empty":       nil,
+		"not pem":     []byte("definitely not a pem file"),
+		"wrong block": []byte("-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"),
 	}
 	for name, in := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -86,40 +97,12 @@ func TestLoadKeyRejectsGarbage(t *testing.T) {
 	}
 }
 
-func TestJWKSShape(t *testing.T) {
-	t.Parallel()
-
-	key := testKey(t)
-	raw, err := JWKS(key)
-	if err != nil {
-		t.Fatalf("JWKS: %v", err)
-	}
-
-	var set jwkSet
-	if err := json.Unmarshal(raw, &set); err != nil {
-		t.Fatalf("JWKS output is not valid JSON: %v", err)
-	}
-	if len(set.Keys) != 1 {
-		t.Fatalf("want exactly 1 key, got %d", len(set.Keys))
-	}
-	k := set.Keys[0]
-	if k.Kty != "RSA" || k.Alg != "RS256" || k.Use != "sig" {
-		t.Fatalf("unexpected JWK metadata: %+v", k)
-	}
-	if k.Kid != KeyID(&key.PublicKey) {
-		t.Fatalf("JWKS kid %q != KeyID %q", k.Kid, KeyID(&key.PublicKey))
-	}
-	if k.N == "" || k.E == "" {
-		t.Fatalf("JWKS key missing modulus/exponent: %+v", k)
-	}
-}
-
 // testKey generates a throwaway RSA key or fails the test.
 func testKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
-	key, err := GenerateKey()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("GenerateKey: %v", err)
+		t.Fatalf("rsa.GenerateKey: %v", err)
 	}
 	return key
 }

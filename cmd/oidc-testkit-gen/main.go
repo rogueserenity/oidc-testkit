@@ -3,9 +3,9 @@
 // JWKS, and the OIDC discovery document — then prints the issuer URL on stdout
 // so a CI step can capture it before baking it into the deployed authorizer.
 //
-// It is a thin shell over package oidctest and does no crypto of its own, which
-// is what guarantees the kid in jwks.json matches what the library's Signer
-// later stamps into every JWT header.
+// It is a thin shell over internal/gen and does no crypto of its own, which is
+// what guarantees the kid in jwks.json matches what the library's Signer later
+// stamps into every JWT header (internal/gen derives it from oidctest.KeyID).
 package main
 
 import (
@@ -16,7 +16,7 @@ import (
 
 	"github.com/alecthomas/kong"
 
-	"github.com/rogueserenity/oidc-testkit/pkg/oidctest"
+	"github.com/rogueserenity/oidc-testkit/internal/gen"
 )
 
 // cli is the flag surface. All four flags are required; there are no positional
@@ -51,20 +51,20 @@ func run(c cli, stdout io.Writer) error {
 		jwksURI = c.Issuer + "/jwks.json"
 	}
 
-	key, err := oidctest.GenerateKey()
+	key, err := gen.GenerateKey()
 	if err != nil {
 		return err
 	}
 
-	keyPEM, err := oidctest.MarshalKeyPEM(key)
+	keyPEM, err := gen.MarshalKeyPEM(key)
 	if err != nil {
 		return err
 	}
-	jwks, err := oidctest.JWKS(key)
+	jwks, err := gen.JWKS(key)
 	if err != nil {
 		return err
 	}
-	discovery, err := oidctest.DiscoveryDoc(c.Issuer, jwksURI)
+	discovery, err := gen.DiscoveryDoc(c.Issuer, jwksURI)
 	if err != nil {
 		return err
 	}
