@@ -1,0 +1,26 @@
+[tools]
+go = "1.26.6"
+golangci-lint = "2.13.2"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+
+[tasks.lint]
+alias = "l"
+description = "Lint Go code and GitHub Actions workflows"
+run = [
+  "golangci-lint run",
+  "actionlint",
+]
+
+[tasks.test]
+alias = "t"
+description = "Run tests with the race detector"
+run = "go test -race -count=1 ./..."
+
+[tasks.build]
+alias = "b"
+description = "Build and vet"
+run = [
+  "go build ./...",
+  "go vet ./...",
+]

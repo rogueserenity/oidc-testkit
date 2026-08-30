@@ -1,0 +1,63 @@
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    revive:
+      # Listing any rule here replaces revive's defaults rather than adding
+      # to them, so the whole default set is spelled out - otherwise
+      # configuring one rule alone silently disables the rest.
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: var-declaration
+        - name: var-naming
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - nilnil
+    - noctx
+    - predeclared
+    - revive
+    - unconvert
+    - unparam
+  exclusions:
+    rules:
+      # Test stubs implementing a fixed signature (http.Handler, and the
+      # like) often ignore a parameter; the names still document the
+      # signature, so blanking them out reads worse than leaving them.
+      - path: _test\.go
+        linters:
+          - revive
+        text: unused-parameter
+      # Tests read files from paths they just wrote into a t.TempDir and use
+      # example.com URLs as fixture data - gosec's taint/entropy heuristics
+      # (G304 file inclusion, G101 hardcoded credentials) are pure noise here.
+      - path: _test\.go
+        linters:
+          - gosec
