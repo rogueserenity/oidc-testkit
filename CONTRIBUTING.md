@@ -55,10 +55,10 @@ conventional-commit history on `main` and keeps a
 update. **Merging that PR** tags `vX.Y.Z` and publishes the GitHub Release —
 nothing is tagged by hand.
 
-Pre-1.0 bump rules: `feat:` bumps the minor, `fix:` (and other user-visible
-types) the patch, `feat!:` / `BREAKING CHANGE:` also the minor. A change that
-should not appear in release notes or move the version (pure `chore:`, `ci:`,
-`test:`) still merges normally; it just does not trigger a release on its own.
+Bump rules: `feat:` bumps the minor, `fix:` (and other user-visible types) the
+patch, `feat!:` / `BREAKING CHANGE:` the major. A change that should not appear
+in release notes or move the version (pure `chore:`, `ci:`, `test:`) still
+merges normally; it just does not trigger a release on its own.
 
 ## Design constraints
 
