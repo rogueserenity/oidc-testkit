@@ -233,8 +233,9 @@ Versioning is [release-please](https://github.com/googleapis/release-please).
 It watches conventional-commit messages on `main` and maintains a
 `chore(main): release X.Y.Z` PR that updates `CHANGELOG.md` and the version
 manifest. **Merging that PR** tags `vX.Y.Z` and publishes the GitHub Release —
-no manual tagging. Pre-1.0, `feat:` bumps the minor and `fix:` the patch, so
-the first release lands `v0.1.0`.
+no manual tagging. `feat:` bumps the minor, `fix:` (and other user-visible
+types) the patch, and `feat!:` / `BREAKING CHANGE:` the major. The first
+release was `v1.0.0`.
 
 Consumers use a tagged version as a normal module dependency
 (`require github.com/rogueserenity/oidc-testkit vX.Y.Z`) and run the CLI with
