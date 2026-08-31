@@ -37,6 +37,11 @@ const foreignKeyBits = 2048
 // defaultTTL is how far in the future exp sits when no expiry option is given.
 const defaultTTL = time.Hour
 
+// nbfLeeway backdates the default nbf below time.Now() so that ordinary clock
+// skew between the signing process and the token verifier (e.g. a CI runner
+// vs. API Gateway) can't make a freshly minted token appear "not yet valid".
+const nbfLeeway = 30 * time.Second
+
 // Signer holds a loaded key plus the fixed issuer and audience for a suite run,
 // and mints signed JWTs. It carries no mutable state and rsa signing is
 // goroutine-safe, so a single Signer is safe for concurrent use by any number
@@ -147,7 +152,7 @@ func (s *Signer) resolve(opts []SignOption) (*claims, error) {
 		issuer:    s.issuer,
 		audience:  []string{s.audience},
 		issuedAt:  now,
-		notBefore: now,
+		notBefore: now.Add(-nbfLeeway),
 		expiry:    now.Add(defaultTTL),
 	}
 	for _, opt := range opts {
@@ -213,8 +218,9 @@ func signRS256(key *rsa.PrivateKey, kid string, m map[string]any) (string, error
 // Sign issues a signed RS256 JWT.
 //
 // With no options: a fresh random subject ("oidctest-" + 32 hex chars), aud set
-// to the Signer's audience, iss to the Signer's issuer, iat and nbf to now, exp
-// to now + 1h, and kid to the Signer's key id. It returns the compact JWT and
+// to the Signer's audience, iss to the Signer's issuer, iat set to now, nbf
+// backdated by nbfLeeway to absorb clock skew against the verifier, exp to
+// now + 1h, and kid to the Signer's key id. It returns the compact JWT and
 // the subject that was used, so a spec can seed and assert data owned by it.
 func (s *Signer) Sign(opts ...SignOption) (token, subject string, err error) {
 	c, err := s.resolve(opts)
